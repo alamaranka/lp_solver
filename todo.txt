@@ -1,0 +1,8 @@
+- smart way of finding a basic feasible initial solution
+    - Two Phase or Big-M methods
+
+- keep solution in Model class and don't loop repeatedly.
+
+- give BIGM as constant in Model class.
+
+- improve BIGM method, check possible cases.
