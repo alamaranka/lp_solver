@@ -1,7 +1,6 @@
 import json
 import math
 import sys
-
 import numpy as np
 
 from lp.entity import VarNameType, Sense, ObjectiveType, \
@@ -11,13 +10,12 @@ from lp.entity import VarNameType, Sense, ObjectiveType, \
 class Model:
     def __init__(self):
         self.status = AlgorithmStatus.NONE
+        self.obj = None
         self.vars = []
         self.consts = []
         self.basis = []
-        self.obj = None
-        self._b = None
-        self._A = None
-        self._B_inv = None
+        self._b = []
+        self._b_array = None
         self._slack_count = 0
         self._surplus_count = 0
         self._artificial_count = 0
@@ -32,6 +30,27 @@ class Model:
         return var
 
     def add_const(self, expr, sense, rhs):
+        const_num = len(self.consts)
+        # normalize rhs
+        if rhs < 0.0:
+            rhs *= -1
+            for v in range(len(expr.vals)):
+                expr.vals[v] *= -1.0
+            sense = Model.set_reverse_sense(sense)
+        # construct vector b
+        self._b.append(rhs)
+        # set variables coeffs_a
+        for val, var in zip(expr.vals, expr.vars):
+            var.coeffs_a[const_num] = val
+        # add slack, surplus, artificial vars
+        if sense == Sense.LE:
+            self.add_slack_var(const_num)
+        elif sense == Sense.GE:
+            self.add_surplus_var(const_num)
+            self.add_artificial_var(const_num)
+        elif sense == Sense.EQ:
+            self.add_artificial_var(const_num)
+        # add constraint
         const = Constraint(expr, sense, rhs)
         self.consts.append(const)
         return const
@@ -46,7 +65,6 @@ class Model:
                 self.obj.expr.vars[e].coeff_c = self.obj.expr.vals[e]
 
     def solve(self):
-        self.standardize_model()
         self.prepare_coefficient_matrices()
         self.solve_lp()
 
@@ -61,13 +79,16 @@ class Model:
 
     def iterate(self):
         c_b = self.get_c_b()
-        w = c_b.dot(self._B_inv)
+        B_inv = self.get_B_inv(self.basis)
+        w = c_b.dot(B_inv)
         z_c = {}
         for var in [v for v in self.vars if not v.in_basis]:
-            z_c[var] = w.dot(var.coeffs_a) - var.coeff_c
+            coeffs_a = Model.get_coeff_matrix([var], len(self.consts), 1)
+            z_c[var] = w.dot(coeffs_a) - var.coeff_c
         entering_var = max(z_c, key=z_c.get)
         if z_c[entering_var] > 0:
-            y_k = self._B_inv.dot(entering_var.coeffs_a)
+            coeffs_a = Model.get_coeff_matrix([entering_var], len(self.consts), 1)
+            y_k = B_inv.dot(coeffs_a)
             if np.all(y_k <= 0):
                 self.status = AlgorithmStatus.UNBOUNDED
                 self.is_terminated = True
@@ -88,36 +109,12 @@ class Model:
             self.is_terminated = True
             self.check_feasibility()
 
-    def standardize_model(self):
-        for c in range(len(self.consts)):
-            const = self.consts[c]
-            # prepare rhs
-            if const.rhs < 0.0:
-                const.rhs *= -1
-                for v in range(len(const.expr.vals)):
-                    const.expr.vals[v] *= -1.0
-                if const.sense == Sense.LE:
-                    const.sense = Sense.GE
-                elif const.sense == Sense.GE:
-                    const.sense = Sense.LE
-            # add slack, surplus, artificial vars
-            if const.sense == Sense.LE:
-                self.add_slack_var(c)
-            elif const.sense == Sense.GE:
-                self.add_surplus_var(c)
-                self.add_artificial_var(c)
-            elif const.sense == Sense.EQ:
-                self.add_artificial_var(c)
-
     def add_slack_var(self, c):
         slack = self.add_var(0, sys.float_info.max,
                              's' + str(self._slack_count))
         slack.variable_type = VarNameType.SLACK
         slack.coeff_c = 0.0
-        self.obj.expr.add_term(0.0, slack)
-        coeffs_a = np.zeros((len(self.consts), 1))
-        coeffs_a[c] = 1.0
-        slack.coeffs_a = coeffs_a
+        slack.coeffs_a[c] = 1.0
         slack.in_basis = True
         self.basis.append(slack)
         self._slack_count += 1
@@ -127,10 +124,7 @@ class Model:
                                'e' + str(self._surplus_count))
         surplus.variable_type = VarNameType.SURPLUS
         surplus.coeff_c = 0.0
-        self.obj.expr.add_term(0.0, surplus)
-        coeffs_a = np.zeros((len(self.consts), 1))
-        coeffs_a[c] = -1.0
-        surplus.coeffs_a = coeffs_a
+        surplus.coeffs_a[c] = -1.0
         self._surplus_count += 1
 
     def add_artificial_var(self, c):
@@ -138,36 +132,20 @@ class Model:
                                   'a' + str(self._surplus_count))
         artificial.variable_type = VarNameType.ARTIFICIAL
         artificial.coeff_c = self.BIG_M
-        coeffs_a = np.zeros((len(self.consts), 1))
-        coeffs_a[c] = 1.0
-        artificial.coeffs_a = coeffs_a
+        artificial.coeffs_a[c] = 1.0
         artificial.in_basis = True
         self.basis.append(artificial)
         self._artificial_count += 1
 
     def prepare_coefficient_matrices(self):
-        self._b = np.asarray([const.rhs for const in self.consts],
-                             dtype=np.float32)
-        self._b = self._b.reshape((self._b.shape[0], 1))
-        for var in [v for v in self.vars
-                    if v.variable_type == VarNameType.PRIMAL]:
-            coeffs = []
-            for const in self.consts:
-                expr = const.expr
-                var_index = self.get_var_index_in_const(var, expr)
-                if var_index < 0:
-                    coeffs.append(0.0)
-                else:
-                    coeffs.append(expr.vals[var_index])
-            array = np.asarray(coeffs, dtype=np.float32)
-            array = array.reshape((len(self.consts), 1))
-            var.coeffs_a = array
-        self._A = self.get_coeff_matrix(self.vars)
+        self._b_array = np.asarray(self._b,
+                                   dtype=np.float32)
+        self._b_array = self._b_array.reshape(
+            (self._b_array.shape[0], 1))
 
     def get_basic_feasible_solution(self):
-        self.basis = [v for v in self.vars if v.in_basis]
-        self.set_B_inv(self.basis)
-        B_inv_b = self._B_inv.dot(self._b)
+        B_inv = self.get_B_inv(self.basis)
+        B_inv_b = B_inv.dot(self._b_array)
         if np.all(B_inv_b >= 0):
             for v in range(len(self.basis)):
                 self.basis[v].value = B_inv_b[v].item()
@@ -214,24 +192,26 @@ class Model:
 
     def update_basis(self, leaving_var, entering_var):
         self.basis = [entering_var if x == leaving_var else x for x in self.basis]
-        self.set_B_inv(self.basis)
-        B_inv_b = self._B_inv.dot(self._b)
+        B_inv = self.get_B_inv(self.basis)
+        B_inv_b = B_inv.dot(self._b_array)
         for v in range(len(self.basis)):
             self.basis[v].value = B_inv_b[v].item()
 
-    def set_B_inv(self, basis_vars):
-        basic_matrix = self.get_coeff_matrix(basis_vars)
-        if np.linalg.matrix_rank(basic_matrix) == len(self.consts):
-            self._B_inv = np.linalg.inv(basic_matrix)
+    def get_B_inv(self, basis_vars):
+        n = len(self.consts)
+        basic_matrix = Model.get_coeff_matrix(basis_vars, n, n)
+        if np.linalg.matrix_rank(basic_matrix) == n:
+            return np.linalg.inv(basic_matrix)
         else:
-            self._B_inv = None
+            return None
 
     @staticmethod
-    def get_coeff_matrix(variables):
-        coeffs = []
-        for var in variables:
-            coeffs.append(var.coeffs_a)
-        return np.concatenate(coeffs, axis=1)
+    def get_coeff_matrix(variables, row, col):
+        matrix = np.zeros((row, col), dtype=np.float32)
+        for v in range(len(variables)):
+            for key, value in variables[v].coeffs_a.items():
+                matrix[key, v] = value
+        return matrix.reshape((row, col))
 
     @staticmethod
     def get_first_or_default(slack_var):

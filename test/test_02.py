@@ -15,7 +15,7 @@ def run():
 
     expr = Expression()
     expr.add_term(1.0, y)
-    model.add_const(expr, Sense.GE, 0.5)
+    model.add_const(expr, Sense.GE, -0.5)
 
     expr = Expression()
     expr.add_term(1.0, x)
