@@ -9,7 +9,7 @@ class Variable:
         self.variable_type = variable_type
         self.value = 0.0
         self.coeff_c = 0.0
-        self.coeffs_a = []
+        self.coeffs_a = {}
         self.in_basis = False
 
 

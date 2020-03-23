@@ -9,7 +9,7 @@ def run():
     model = Model()
 
     n_cols = 500
-    n_rows = 250
+    n_rows = 100
     cols = []
     rows = []
     obj_expr = Expression()
