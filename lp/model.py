@@ -1,7 +1,6 @@
 import json
 import math
 import sys
-import time
 
 import numpy as np
 
@@ -47,13 +46,9 @@ class Model:
                 self.obj.expr.vars[e].coeff_c = self.obj.expr.vals[e]
 
     def solve(self):
-        start_time = time.process_time()
         self.standardize_model()
         self.prepare_coefficient_matrices()
         self.solve_lp()
-        end_time = time.process_time()
-        print('Solution completed in {0} seconds.'
-              .format(end_time - start_time))
 
     def solve_lp(self):
         if self.get_basic_feasible_solution():
