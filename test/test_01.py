@@ -1,9 +1,8 @@
 import sys
-
 import numpy as np
 
-from lp.entity import Sense, ObjectiveType
-from lp.model import Model, Expression
+from lp.entity import Sense, ObjectiveType, Expression
+from lp.model import Model
 
 
 def run():

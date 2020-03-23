@@ -3,7 +3,8 @@ import math
 import sys
 import numpy as np
 
-from lp.entity import VariableType, Sense, ObjectiveType, AlgorithmStatus
+from lp.entity import VarNameType, Sense, ObjectiveType, \
+    AlgorithmStatus, Result, Variable, Constraint, Objective
 
 
 class Model:
@@ -24,7 +25,7 @@ class Model:
         self.is_terminated = False
 
     def add_var(self, lb=0, ub=sys.float_info.max, name='',
-                variable_type=VariableType.PRIMAL):
+                variable_type=VarNameType.PRIMAL):
         var = Variable(lb, ub, name, variable_type)
         self.vars.append(var)
         return var
@@ -110,7 +111,7 @@ class Model:
     def add_slack_var(self, c):
         slack = self.add_var(0, sys.float_info.max,
                              's' + str(self._slack_count))
-        slack.variable_type = VariableType.SLACK
+        slack.variable_type = VarNameType.SLACK
         slack.coeff_c = 0.0
         self.obj.expr.add_term(0.0, slack)
         coeffs_a = np.zeros((len(self.consts), 1))
@@ -123,7 +124,7 @@ class Model:
     def add_surplus_var(self, c):
         surplus = self.add_var(0, sys.float_info.max,
                                'e' + str(self._surplus_count))
-        surplus.variable_type = VariableType.SURPLUS
+        surplus.variable_type = VarNameType.SURPLUS
         surplus.coeff_c = 0.0
         self.obj.expr.add_term(0.0, surplus)
         coeffs_a = np.zeros((len(self.consts), 1))
@@ -134,7 +135,7 @@ class Model:
     def add_artificial_var(self, c):
         artificial = self.add_var(0, sys.float_info.max,
                                   'a' + str(self._surplus_count))
-        artificial.variable_type = VariableType.ARTIFICIAL
+        artificial.variable_type = VarNameType.ARTIFICIAL
         artificial.coeff_c = self.BIG_M
         coeffs_a = np.zeros((len(self.consts), 1))
         coeffs_a[c] = 1.0
@@ -148,7 +149,7 @@ class Model:
                              dtype=np.float32)
         self._b = self._b.reshape((self._b.shape[0], 1))
         for var in [v for v in self.vars
-                    if v.variable_type == VariableType.PRIMAL]:
+                    if v.variable_type == VarNameType.PRIMAL]:
             coeffs = []
             for const in self.consts:
                 expr = const.expr
@@ -177,7 +178,7 @@ class Model:
 
     def check_feasibility(self):
         for var in [v for v in self.vars
-                    if v.variable_type == VariableType.ARTIFICIAL]:
+                    if v.variable_type == VarNameType.ARTIFICIAL]:
             if var.value > 0.0:
                 self.status = AlgorithmStatus.INFEASIBLE
                 return
@@ -251,47 +252,3 @@ class Model:
         if var in expr.vars:
             return expr.vars.index(var)
         return -1
-
-
-class Variable:
-    def __init__(self, lb, ub, name, variable_type):
-        self.lb = lb
-        self.ub = ub
-        self.name = name
-        self.variable_type = variable_type
-        self.value = 0.0
-        self.coeff_c = 0.0
-        self.coeffs_a = []
-        self.in_basis = False
-
-
-class Expression:
-    def __init__(self):
-        self.vars = []
-        self.vals = []
-
-    def add_term(self, coeff, var):
-        self.vars.append(var)
-        self.vals.append(coeff)
-
-
-class Constraint:
-    def __init__(self, expr=None, sense=None, rhs=0):
-        self.expr = expr
-        self.sense = sense
-        self.rhs = rhs
-
-
-class Objective:
-    def __init__(self, expr=None, obj_type=None):
-        self.expr = expr
-        self.obj_type = obj_type
-        self.value = 0.0
-
-
-class Result:
-    def __init__(self, status=AlgorithmStatus.NONE.name,
-                 obj_val=0, solution=None):
-        self.status = status
-        self.obj_val = obj_val
-        self.solution = solution
