@@ -16,6 +16,7 @@ class Model:
         self.vars = []
         self.consts = []
         self.basis = []
+        self._A = {}
         self._b = []
         self._b_array = None
         self._B_inv = None
@@ -83,12 +84,10 @@ class Model:
         w = c_b.dot(self._B_inv)
         z_c = {}
         for var in [v for v in self.vars if not v.in_basis]:
-            coeffs_a = Model.get_coeff_matrix([var], len(self.consts), 1)
-            z_c[var] = w.dot(coeffs_a) - var.coeff_c
+            z_c[var] = w.dot(self._A[var]) - var.coeff_c
         entering_var = max(z_c, key=z_c.get)
         if z_c[entering_var] > 0:
-            coeffs_a = Model.get_coeff_matrix([entering_var], len(self.consts), 1)
-            y_k = self._B_inv.dot(coeffs_a)
+            y_k = self._B_inv.dot(self._A[entering_var])
             if np.all(y_k <= 0):
                 self.status = AlgorithmStatus.UNBOUNDED
                 self.is_terminated = True
@@ -151,6 +150,13 @@ class Model:
                                    dtype=np.float32)
         self._b_array = self._b_array.reshape(
             (self._b_array.shape[0], 1))
+        # prepare coeffs_a
+        n_row = len(self.consts)
+        for v in range(len(self.vars)):
+            matrix = np.zeros((n_row, 1), dtype=np.float32)
+            for key, value in self.vars[v].coeffs_a.items():
+                matrix[key] = value
+            self._A[self.vars[v]] = matrix
 
     def get_basic_feasible_solution(self):
         self._B_inv = np.identity(len(self.basis))
@@ -208,16 +214,14 @@ class Model:
 
     def set_B_inv(self, basis_vars):
         n = len(self.consts)
-        basic_matrix = Model.get_coeff_matrix(basis_vars, n, n)
+        basic_matrix = self.get_coeff_matrix(basis_vars, n, n)
         self._B_inv = np.linalg.inv(basic_matrix)
 
-    @staticmethod
-    def get_coeff_matrix(variables, row, col):
-        matrix = np.zeros((row, col), dtype=np.float32)
-        for v in range(len(variables)):
-            for key, value in variables[v].coeffs_a.items():
-                matrix[key, v] = value
-        return matrix.reshape((row, col))
+    def get_coeff_matrix(self, variables, row, col):
+        coeffs_a = []
+        for var in variables:
+            coeffs_a.append(self._A[var])
+        return np.concatenate(coeffs_a, axis=1).reshape((row, col))
 
     @staticmethod
     def get_first_or_default(slack_var):
