@@ -16,6 +16,7 @@ class Model:
         self.basis = []
         self._b = []
         self._b_array = None
+        self._B_inv = None
         self._slack_count = 0
         self._surplus_count = 0
         self._artificial_count = 0
@@ -43,13 +44,7 @@ class Model:
         for val, var in zip(expr.vals, expr.vars):
             var.coeffs_a[const_num] = val
         # add slack, surplus, artificial vars
-        if sense == Sense.LE:
-            self.add_slack_var(const_num)
-        elif sense == Sense.GE:
-            self.add_surplus_var(const_num)
-            self.add_artificial_var(const_num)
-        elif sense == Sense.EQ:
-            self.add_artificial_var(const_num)
+        self.add_extra_vars(sense, const_num)
         # add constraint
         const = Constraint(expr, sense, rhs)
         self.consts.append(const)
@@ -79,8 +74,7 @@ class Model:
 
     def iterate(self):
         c_b = self.get_c_b()
-        B_inv = self.get_B_inv(self.basis)
-        w = c_b.dot(B_inv)
+        w = c_b.dot(self._B_inv)
         z_c = {}
         for var in [v for v in self.vars if not v.in_basis]:
             coeffs_a = Model.get_coeff_matrix([var], len(self.consts), 1)
@@ -88,7 +82,7 @@ class Model:
         entering_var = max(z_c, key=z_c.get)
         if z_c[entering_var] > 0:
             coeffs_a = Model.get_coeff_matrix([entering_var], len(self.consts), 1)
-            y_k = B_inv.dot(coeffs_a)
+            y_k = self._B_inv.dot(coeffs_a)
             if np.all(y_k <= 0):
                 self.status = AlgorithmStatus.UNBOUNDED
                 self.is_terminated = True
@@ -108,6 +102,15 @@ class Model:
         else:
             self.is_terminated = True
             self.check_feasibility()
+
+    def add_extra_vars(self, sense, const_num):
+        if sense == Sense.LE:
+            self.add_slack_var(const_num)
+        elif sense == Sense.GE:
+            self.add_surplus_var(const_num)
+            self.add_artificial_var(const_num)
+        elif sense == Sense.EQ:
+            self.add_artificial_var(const_num)
 
     def add_slack_var(self, c):
         slack = self.add_var(0, sys.float_info.max,
@@ -144,8 +147,8 @@ class Model:
             (self._b_array.shape[0], 1))
 
     def get_basic_feasible_solution(self):
-        B_inv = self.get_B_inv(self.basis)
-        B_inv_b = B_inv.dot(self._b_array)
+        self._B_inv = np.identity(len(self.basis))
+        B_inv_b = self._B_inv.dot(self._b_array)
         if np.all(B_inv_b >= 0):
             for v in range(len(self.basis)):
                 self.basis[v].value = B_inv_b[v].item()
@@ -192,18 +195,15 @@ class Model:
 
     def update_basis(self, leaving_var, entering_var):
         self.basis = [entering_var if x == leaving_var else x for x in self.basis]
-        B_inv = self.get_B_inv(self.basis)
-        B_inv_b = B_inv.dot(self._b_array)
+        self.set_B_inv(self.basis)
+        B_inv_b = self._B_inv.dot(self._b_array)
         for v in range(len(self.basis)):
             self.basis[v].value = B_inv_b[v].item()
 
-    def get_B_inv(self, basis_vars):
+    def set_B_inv(self, basis_vars):
         n = len(self.consts)
         basic_matrix = Model.get_coeff_matrix(basis_vars, n, n)
-        if np.linalg.matrix_rank(basic_matrix) == n:
-            return np.linalg.inv(basic_matrix)
-        else:
-            return None
+        self._B_inv = np.linalg.inv(basic_matrix)
 
     @staticmethod
     def get_coeff_matrix(variables, row, col):
