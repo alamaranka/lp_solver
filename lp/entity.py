@@ -2,11 +2,13 @@ import enum
 
 
 class Variable:
-    def __init__(self, lb, ub, name, variable_type):
+    def __init__(self, lb, ub, name,
+                 var_type, var_name_type):
         self.lb = lb
         self.ub = ub
         self.name = name
-        self.variable_type = variable_type
+        self.var_type = var_type
+        self.var_name_type = var_name_type
         self.value = 0.0
         self.coeff_c = 0.0
         self.coeffs_a = {}
@@ -57,6 +59,13 @@ class ObjectiveType(enum.Enum):
     NONE = 0
     MIN = 1
     MAX = 2
+
+
+class VarType(enum.Enum):
+    NONE = 0
+    CONTINUOUS = 1
+    BINARY = 2
+    INTEGER = 3
 
 
 class VarNameType(enum.Enum):

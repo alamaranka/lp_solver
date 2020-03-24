@@ -6,7 +6,7 @@ import time
 import numpy as np
 
 from lp.entity import VarNameType, Sense, ObjectiveType, \
-    AlgorithmStatus, Result, Variable, Constraint, Objective
+    AlgorithmStatus, Result, Variable, Constraint, Objective, VarType
 
 
 class Model:
@@ -16,6 +16,12 @@ class Model:
         self.vars = []
         self.consts = []
         self.basis = []
+        self.result = Result()
+        self.BIG_M = math.pow(10, 6)
+        self.is_terminated = False
+        self.is_mip = False
+        self.n_rows = 0
+        self.n_cols = 0
         self._A = {}
         self._b = []
         self._b_array = None
@@ -23,18 +29,43 @@ class Model:
         self._slack_count = 0
         self._surplus_count = 0
         self._artificial_count = 0
-        self.result = Result()
-        self.BIG_M = math.pow(10, 6)
-        self.is_terminated = False
+
+    def solve(self):
+        start_time = time.clock()
+        self.prepare_coefficient_matrices()
+        self.solve_lp()
+        end_time = time.clock()
+        self.print_algorithm_logs(start_time, end_time)
+
+    def print_algorithm_logs(self, start_time, end_time):
+        if self.is_mip:
+            problem = 'Mixed-integer programming problem'
+        else:
+            problem = 'Linear programming problem'
+        print('{0} solved in {1:.4f} seconds.'
+              .format(problem, end_time - start_time))
+
+    def solve_lp(self):
+        if self.get_basic_feasible_solution():
+            while not self.is_terminated:
+                self.iterate()
+                self.update_print_result()
+        else:
+            self.status = AlgorithmStatus.INFEASIBLE
+            self.update_print_result()
 
     def add_var(self, lb=0, ub=sys.float_info.max, name='',
-                variable_type=VarNameType.PRIMAL):
-        var = Variable(lb, ub, name, variable_type)
+                var_type=VarType.CONTINUOUS,
+                var_name_type=VarNameType.PRIMAL):
+        if var_type != VarType.CONTINUOUS:
+            self.is_mip = True
+        var = Variable(lb, ub, name, var_type, var_name_type)
         self.vars.append(var)
+        self.n_cols += 1
         return var
 
     def add_const(self, expr, sense, rhs):
-        const_num = len(self.consts)
+        const_num = self.n_rows
         # normalize rhs
         if rhs < 0.0:
             rhs *= -1
@@ -51,6 +82,7 @@ class Model:
         # add constraint
         const = Constraint(expr, sense, rhs)
         self.consts.append(const)
+        self.n_rows += 1
         return const
 
     def set_objective(self, expr, obj_type):
@@ -61,23 +93,6 @@ class Model:
             elif obj_type == ObjectiveType.MAX:
                 self.obj.expr.vals[e] *= -1.0
                 self.obj.expr.vars[e].coeff_c = self.obj.expr.vals[e]
-
-    def solve(self):
-        start_time = time.clock()
-        self.prepare_coefficient_matrices()
-        self.solve_lp()
-        end_time = time.clock()
-        print('Problem solved in {0:.2f} seconds.'
-              .format(end_time - start_time))
-
-    def solve_lp(self):
-        if self.get_basic_feasible_solution():
-            while not self.is_terminated:
-                self.iterate()
-                self.update_print_result()
-        else:
-            self.status = AlgorithmStatus.INFEASIBLE
-            self.update_print_result()
 
     def iterate(self):
         c_b = self.get_c_b()
@@ -120,7 +135,7 @@ class Model:
     def add_slack_var(self, c):
         slack = self.add_var(0, sys.float_info.max,
                              's' + str(self._slack_count))
-        slack.variable_type = VarNameType.SLACK
+        slack.var_name_type = VarNameType.SLACK
         slack.coeff_c = 0.0
         slack.coeffs_a[c] = 1.0
         slack.in_basis = True
@@ -130,7 +145,7 @@ class Model:
     def add_surplus_var(self, c):
         surplus = self.add_var(0, sys.float_info.max,
                                'e' + str(self._surplus_count))
-        surplus.variable_type = VarNameType.SURPLUS
+        surplus.var_name_type = VarNameType.SURPLUS
         surplus.coeff_c = 0.0
         surplus.coeffs_a[c] = -1.0
         self._surplus_count += 1
@@ -138,7 +153,7 @@ class Model:
     def add_artificial_var(self, c):
         artificial = self.add_var(0, sys.float_info.max,
                                   'a' + str(self._surplus_count))
-        artificial.variable_type = VarNameType.ARTIFICIAL
+        artificial.var_name_type = VarNameType.ARTIFICIAL
         artificial.coeff_c = self.BIG_M
         artificial.coeffs_a[c] = 1.0
         artificial.in_basis = True
@@ -151,9 +166,8 @@ class Model:
         self._b_array = self._b_array.reshape(
             (self._b_array.shape[0], 1))
         # prepare coeffs_a
-        n_row = len(self.consts)
-        for v in range(len(self.vars)):
-            matrix = np.zeros((n_row, 1), dtype=np.float32)
+        for v in range(self.n_cols):
+            matrix = np.zeros((self.n_rows, 1), dtype=np.float32)
             for key, value in self.vars[v].coeffs_a.items():
                 matrix[key] = value
             self._A[self.vars[v]] = matrix
@@ -172,7 +186,7 @@ class Model:
 
     def check_feasibility(self):
         for var in [v for v in self.vars
-                    if v.variable_type == VarNameType.ARTIFICIAL]:
+                    if v.var_name_type == VarNameType.ARTIFICIAL]:
             if var.value > 0.0:
                 self.status = AlgorithmStatus.INFEASIBLE
                 return
@@ -213,7 +227,7 @@ class Model:
             self.basis[v].value = B_inv_b[v].item()
 
     def set_B_inv(self, basis_vars):
-        n = len(self.consts)
+        n = self.n_rows
         basic_matrix = self.get_coeff_matrix(basis_vars, n, n)
         self._B_inv = np.linalg.inv(basic_matrix)
 
