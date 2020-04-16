@@ -82,3 +82,8 @@ class AlgorithmStatus(enum.Enum):
     FEASIBLE = 2
     INFEASIBLE = 3
     UNBOUNDED = 4
+
+
+class UnknownVariableError(Exception):
+    def __init__(self, message):
+        self.message = message

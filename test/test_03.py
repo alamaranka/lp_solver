@@ -24,3 +24,4 @@ def run():
     model.set_objective(expr, ObjectiveType.MAX)
 
     model.solve()
+

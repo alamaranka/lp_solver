@@ -6,7 +6,8 @@ import time
 import numpy as np
 
 from lp.entity import VarNameType, Sense, ObjectiveType, \
-    AlgorithmStatus, Result, Variable, Constraint, Objective, VarType
+    AlgorithmStatus, Result, Variable, Constraint, Objective, \
+    VarType, UnknownVariableError
 
 
 class Model:
@@ -237,11 +238,18 @@ class Model:
             coeffs_a.append(self._A[var])
         return np.concatenate(coeffs_a, axis=1).reshape((row, col))
 
+    def get_value(self, var):
+        var_in_vars = self.get_first_or_default([v for v in self.vars if v == var])
+        if var_in_vars:
+            return var_in_vars.value
+        else:
+            raise UnknownVariableError(var_in_vars, 'Unknown variable to the solver.')
+
     @staticmethod
-    def get_first_or_default(slack_var):
-        if not slack_var:
+    def get_first_or_default(var):
+        if not var:
             return None
-        return slack_var[0]
+        return var[0]
 
     @staticmethod
     def set_reverse_sense(sense):
