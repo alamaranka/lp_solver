@@ -16,30 +16,51 @@ class Model:
 
     Parameters
     ===========
-    vars        : list of variables in the model
-    consts      : list of constraints in the model
-    obj         : Objective class contains the objective of the model
-    result      : Result class contains the values of variables in the solution if exists
+    name            : str defines the name of the model
 
+    Properties
+    ===========
+    vars            : list of variables in the model
+    consts          : list of constraints in the model
+    obj             : Objective class contains the objective of the model
+    result          : Result class contains the values of variables in the solution if exists
+    is_mip          : bool whether or not the problem is MIP
+    is_terminated   : bool whether or not the solver is terminated
+    A               : dict of coefficient matrix A
+    b               : numpy array of b vector
+    rhs             : list of right hand side values
+    n_rows          : int number of constraints
+    n_cols          : int number of variables
+    n_slack         : int number of slack variables
+    n_surplus       : int number of surplus variables
+    n_artificial    : int number of artificial variables
+    BIG_M           : double used to model artificial variables in the model
     """
-    def __init__(self):
+    def __init__(self, name="LP Solver"):
+        self.name = name
         self.vars = []
         self.consts = []
         self.obj = None
         self.result = Result()
-        self.basis = []
-        self.BIG_M = math.pow(10, 6)
-        self.is_terminated = False
         self.is_mip = False
+        self.is_terminated = False
+        self.A = {}
+        self.b = None
+        self.rhs = []
         self.n_rows = 0
         self.n_cols = 0
-        self._A = {}
-        self._b = []
-        self._b_array = None
-        self._B_inv = None
-        self._slack_count = 0
-        self._surplus_count = 0
-        self._artificial_count = 0
+        self.n_slack = 0
+        self.n_surplus = 0
+        self.n_artificial = 0
+        self.BIG_M = math.pow(10, 6)
+
+        # TODO: consider moving these to SimplexSolver
+        self.basis = []
+        self.B_inv = None
+
+    @property
+    def __str__(self):
+        return self.name
 
     def solve(self):
         start_time = time.clock()
@@ -84,7 +105,7 @@ class Model:
                 expr.vals[v] *= -1.0
             sense = Model.set_reverse_sense(sense)
         # construct vector b
-        self._b.append(rhs)
+        self.rhs.append(rhs)
         # set variables coeffs_a
         for val, var in zip(expr.vals, expr.vars):
             var.coeffs_a[const_num] = val
@@ -107,13 +128,13 @@ class Model:
 
     def iterate(self):
         c_b = self.get_c_b()
-        w = c_b.dot(self._B_inv)
+        w = c_b.dot(self.B_inv)
         z_c = {}
         for var in [v for v in self.vars if not v.in_basis]:
-            z_c[var] = w.dot(self._A[var]) - var.coeff_c
+            z_c[var] = w.dot(self.A[var]) - var.coeff_c
         entering_var = max(z_c, key=z_c.get)
         if z_c[entering_var] > 0:
-            y_k = self._B_inv.dot(self._A[entering_var])
+            y_k = self.B_inv.dot(self.A[entering_var])
             if np.all(y_k <= 0):
                 self.result.status = AlgorithmStatus.UNBOUNDED
                 self.is_terminated = True
@@ -145,47 +166,45 @@ class Model:
 
     def add_slack_var(self, c):
         slack = self.add_var(0, sys.float_info.max,
-                             's' + str(self._slack_count))
+                             's' + str(self.n_slack))
         slack.var_name_type = VarNameType.SLACK
         slack.coeff_c = 0.0
         slack.coeffs_a[c] = 1.0
         slack.in_basis = True
         self.basis.append(slack)
-        self._slack_count += 1
+        self.n_slack += 1
 
     def add_surplus_var(self, c):
         surplus = self.add_var(0, sys.float_info.max,
-                               'e' + str(self._surplus_count))
+                               'e' + str(self.n_surplus))
         surplus.var_name_type = VarNameType.SURPLUS
         surplus.coeff_c = 0.0
         surplus.coeffs_a[c] = -1.0
-        self._surplus_count += 1
+        self.n_surplus += 1
 
     def add_artificial_var(self, c):
         artificial = self.add_var(0, sys.float_info.max,
-                                  'a' + str(self._surplus_count))
+                                  'a' + str(self.n_surplus))
         artificial.var_name_type = VarNameType.ARTIFICIAL
         artificial.coeff_c = self.BIG_M
         artificial.coeffs_a[c] = 1.0
         artificial.in_basis = True
         self.basis.append(artificial)
-        self._artificial_count += 1
+        self.n_artificial += 1
 
     def prepare_coefficient_matrices(self):
-        self._b_array = np.asarray(self._b,
-                                   dtype=np.float32)
-        self._b_array = self._b_array.reshape(
-            (self._b_array.shape[0], 1))
+        self.b = np.asarray(self.rhs, dtype=np.float32)
+        self.b = self.b.reshape((self.b.shape[0], 1))
         # prepare coeffs_a
         for v in range(self.n_cols):
             matrix = np.zeros((self.n_rows, 1), dtype=np.float32)
             for key, value in self.vars[v].coeffs_a.items():
                 matrix[key] = value
-            self._A[self.vars[v]] = matrix
+            self.A[self.vars[v]] = matrix
 
     def get_basic_feasible_solution(self):
-        self._B_inv = np.identity(len(self.basis))
-        B_inv_b = self._B_inv.dot(self._b_array)
+        self.B_inv = np.identity(len(self.basis))
+        B_inv_b = self.B_inv.dot(self.b)
         if np.all(B_inv_b >= 0):
             for v in range(len(self.basis)):
                 self.basis[v].value = B_inv_b[v].item()
@@ -232,19 +251,19 @@ class Model:
     def update_basis(self, leaving_var, entering_var):
         self.basis = [entering_var if x == leaving_var else x for x in self.basis]
         self.set_B_inv(self.basis)
-        B_inv_b = self._B_inv.dot(self._b_array)
+        B_inv_b = self.B_inv.dot(self.b)
         for v in range(len(self.basis)):
             self.basis[v].value = B_inv_b[v].item()
 
     def set_B_inv(self, basis_vars):
         n = self.n_rows
         basic_matrix = self.get_coeff_matrix(basis_vars, n, n)
-        self._B_inv = np.linalg.inv(basic_matrix)
+        self.B_inv = np.linalg.inv(basic_matrix)
 
     def get_coeff_matrix(self, variables, row, col):
         coeffs_a = []
         for var in variables:
-            coeffs_a.append(self._A[var])
+            coeffs_a.append(self.A[var])
         return np.concatenate(coeffs_a, axis=1).reshape((row, col))
 
     def get_value(self, var):
