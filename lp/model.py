@@ -11,13 +11,23 @@ from lp.entity import VarNameType, Sense, ObjectiveType, \
 
 
 class Model:
+    """
+    The model contains variables, constraints, and objective of the problem.
+
+    Parameters
+    ===========
+    vars        : list of variables in the model
+    consts      : list of constraints in the model
+    obj         : Objective class contains the objective of the model
+    result      : Result class contains the values of variables in the solution if exists
+
+    """
     def __init__(self):
-        self.status = AlgorithmStatus.NONE
-        self.obj = None
         self.vars = []
         self.consts = []
-        self.basis = []
+        self.obj = None
         self.result = Result()
+        self.basis = []
         self.BIG_M = math.pow(10, 6)
         self.is_terminated = False
         self.is_mip = False
@@ -52,7 +62,7 @@ class Model:
                 self.iterate()
                 self.update_print_result()
         else:
-            self.status = AlgorithmStatus.INFEASIBLE
+            self.result.status = AlgorithmStatus.INFEASIBLE
             self.update_print_result()
 
     def add_var(self, lb=0, ub=sys.float_info.max, name='',
@@ -105,7 +115,7 @@ class Model:
         if z_c[entering_var] > 0:
             y_k = self._B_inv.dot(self._A[entering_var])
             if np.all(y_k <= 0):
-                self.status = AlgorithmStatus.UNBOUNDED
+                self.result.status = AlgorithmStatus.UNBOUNDED
                 self.is_terminated = True
                 return
             rates = {}
@@ -189,15 +199,14 @@ class Model:
         for var in [v for v in self.vars
                     if v.var_name_type == VarNameType.ARTIFICIAL]:
             if var.value > 0.0:
-                self.status = AlgorithmStatus.INFEASIBLE
+                self.result.status = AlgorithmStatus.INFEASIBLE
                 return
         if self.is_terminated:
-            self.status = AlgorithmStatus.OPTIMAL
+            self.result.status = AlgorithmStatus.OPTIMAL
         else:
-            self.status = AlgorithmStatus.FEASIBLE
+            self.result.status = AlgorithmStatus.FEASIBLE
 
     def update_print_result(self):
-        self.result.status = self.status.name
         solution = {}
         for var in self.vars:
             solution[var.name] = round(var.value, 3)
@@ -243,7 +252,7 @@ class Model:
         if var_in_vars:
             return var_in_vars.value
         else:
-            raise UnknownVariableError(var_in_vars, 'Unknown variable to the solver.')
+            raise UnknownVariableError('Unknown variable to the solver.')
 
     @staticmethod
     def get_first_or_default(var):

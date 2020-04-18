@@ -48,27 +48,27 @@ class Result:
         self.solution = solution
 
 
-class Sense(enum.Enum):
+class Sense(enum.IntEnum):
     NONE = 0
     LE = 1
     EQ = 2
     GE = 3
 
 
-class ObjectiveType(enum.Enum):
+class ObjectiveType(enum.IntEnum):
     NONE = 0
     MIN = 1
     MAX = 2
 
 
-class VarType(enum.Enum):
+class VarType(enum.IntEnum):
     NONE = 0
     CONTINUOUS = 1
     BINARY = 2
     INTEGER = 3
 
 
-class VarNameType(enum.Enum):
+class VarNameType(enum.IntEnum):
     NONE = 0
     PRIMAL = 1
     SLACK = 2
@@ -76,7 +76,7 @@ class VarNameType(enum.Enum):
     ARTIFICIAL = 4
 
 
-class AlgorithmStatus(enum.Enum):
+class AlgorithmStatus(enum.IntEnum):
     NONE = 0
     OPTIMAL = 1
     FEASIBLE = 2
