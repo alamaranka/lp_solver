@@ -8,6 +8,8 @@ import numpy as np
 from lp.entity import VarNameType, Sense, ObjectiveType, \
     AlgorithmStatus, Result, Variable, Constraint, Objective, \
     VarType, UnknownVariableError
+from lp.helper import get_first_or_default, set_reverse_sense
+from lp.solver import SimplexSolver, MIPSolver
 
 
 class Model:
@@ -63,6 +65,8 @@ class Model:
         return self.name
 
     def solve(self):
+        simplex_solver = SimplexSolver(self)
+        mip_solver = MIPSolver(self)
         start_time = time.clock()
         self.prepare_coefficient_matrices()
         self.solve_lp()
@@ -103,7 +107,7 @@ class Model:
             rhs *= -1
             for v in range(len(expr.vals)):
                 expr.vals[v] *= -1.0
-            sense = Model.set_reverse_sense(sense)
+            sense = set_reverse_sense(sense)
         # construct vector b
         self.rhs.append(rhs)
         # set variables coeffs_a
@@ -125,35 +129,6 @@ class Model:
             elif obj_type == ObjectiveType.MAX:
                 self.obj.expr.vals[e] *= -1.0
                 self.obj.expr.vars[e].coeff_c = self.obj.expr.vals[e]
-
-    def iterate(self):
-        c_b = self.get_c_b()
-        w = c_b.dot(self.B_inv)
-        z_c = {}
-        for var in [v for v in self.vars if not v.in_basis]:
-            z_c[var] = w.dot(self.A[var]) - var.coeff_c
-        entering_var = max(z_c, key=z_c.get)
-        if z_c[entering_var] > 0:
-            y_k = self.B_inv.dot(self.A[entering_var])
-            if np.all(y_k <= 0):
-                self.result.status = AlgorithmStatus.UNBOUNDED
-                self.is_terminated = True
-                return
-            rates = {}
-            for i in range(len(y_k)):
-                if y_k[i] > 0:
-                    rates[i] = self.basis[i].value / y_k[i]
-            leaving_var_index = min(rates, key=rates.get)
-            entering_var.value = rates[leaving_var_index].item()
-            entering_var.in_basis = True
-            leaving_var = self.basis[leaving_var_index]
-            leaving_var.value = 0.0
-            leaving_var.in_basis = False
-            self.update_basis(leaving_var, entering_var)
-            self.update_obj_value()
-        else:
-            self.is_terminated = True
-            self.check_feasibility()
 
     def add_extra_vars(self, sense, const_num):
         if sense == Sense.LE:
@@ -236,12 +211,6 @@ class Model:
             self.result.obj_val = -round(self.obj.value, 3)
         print(json.dumps(self.result.__dict__))
 
-    def get_c_b(self):
-        coeffs = []
-        for var in self.basis:
-            coeffs.append(var.coeff_c)
-        return np.asarray(coeffs, dtype=np.float32).reshape((1, len(coeffs)))
-
     def update_obj_value(self):
         obj_val = 0.0
         for var in self.vars:
@@ -267,29 +236,9 @@ class Model:
         return np.concatenate(coeffs_a, axis=1).reshape((row, col))
 
     def get_value(self, var):
-        var_in_vars = self.get_first_or_default([v for v in self.vars if v == var])
+        var_in_vars = get_first_or_default([v for v in self.vars if v == var])
         if var_in_vars:
             return var_in_vars.value
         else:
             raise UnknownVariableError('Unknown variable to the solver.')
 
-    @staticmethod
-    def get_first_or_default(var):
-        if not var:
-            return None
-        return var[0]
-
-    @staticmethod
-    def set_reverse_sense(sense):
-        if sense == Sense.LE:
-            return Sense.GE
-        elif sense == Sense.GE:
-            return Sense.LE
-        else:
-            return None
-
-    @staticmethod
-    def get_var_index_in_const(var, expr):
-        if var in expr.vars:
-            return expr.vars.index(var)
-        return -1
