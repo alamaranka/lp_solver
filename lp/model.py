@@ -1,4 +1,3 @@
-import json
 import math
 import sys
 import time
@@ -9,7 +8,7 @@ from lp.entity import VarNameType, Sense, ObjectiveType, \
     AlgorithmStatus, Result, Variable, Constraint, Objective, \
     VarType, UnknownVariableError
 from lp.helper import get_first_or_default, set_reverse_sense
-from lp.solver import SimplexSolver, MIPSolver
+from lp.solver import SimplexSolver, MIPSolver, InitialBasicSolutionGenerator
 
 
 class Model:
@@ -27,9 +26,11 @@ class Model:
     obj             : Objective class contains the objective of the model
     result          : Result class contains the values of variables in the solution if exists
     is_mip          : bool whether or not the problem is MIP
-    is_terminated   : bool whether or not the solver is terminated
+    is_terminated   : bool whether or not the solution is completed
     A               : dict of coefficient matrix A
     b               : numpy array of b vector
+    basis           : list of variables in the basis
+    B_inv           : numpy array of basis matrix inverse
     rhs             : list of right hand side values
     n_rows          : int number of constraints
     n_cols          : int number of variables
@@ -37,6 +38,7 @@ class Model:
     n_surplus       : int number of surplus variables
     n_artificial    : int number of artificial variables
     BIG_M           : double used to model artificial variables in the model
+    solution_time   : double total solution time in seconds
     """
     def __init__(self, name="LP Solver"):
         self.name = name
@@ -48,6 +50,8 @@ class Model:
         self.is_terminated = False
         self.A = {}
         self.b = None
+        self.basis = []
+        self.B_inv = None
         self.rhs = []
         self.n_rows = 0
         self.n_cols = 0
@@ -55,40 +59,25 @@ class Model:
         self.n_surplus = 0
         self.n_artificial = 0
         self.BIG_M = math.pow(10, 6)
-
-        # TODO: consider moving these to SimplexSolver
-        self.basis = []
-        self.B_inv = None
+        self.solution_time = 0
 
     @property
     def __str__(self):
         return self.name
 
     def solve(self):
-        simplex_solver = SimplexSolver(self)
-        mip_solver = MIPSolver(self)
         start_time = time.clock()
         self.prepare_coefficient_matrices()
-        self.solve_lp()
-        end_time = time.clock()
-        self.print_algorithm_logs(start_time, end_time)
-
-    def print_algorithm_logs(self, start_time, end_time):
-        if self.is_mip:
-            problem = 'Mixed-integer programming problem'
-        else:
-            problem = 'Linear programming problem'
-        print('{0} solved in {1:.4f} seconds.'
-              .format(problem, end_time - start_time))
-
-    def solve_lp(self):
-        if self.get_basic_feasible_solution():
-            while not self.is_terminated:
-                self.iterate()
-                self.update_print_result()
+        ibsg = InitialBasicSolutionGenerator(self)
+        simplex_solver = SimplexSolver(self)
+        # mip_solver = MIPSolver(self)
+        if ibsg.generate():
+            simplex_solver.run()
         else:
             self.result.status = AlgorithmStatus.INFEASIBLE
-            self.update_print_result()
+            # self.update_print_result()
+        end_time = time.clock()
+        self.solution_time = end_time - start_time
 
     def add_var(self, lb=0, ub=sys.float_info.max, name='',
                 var_type=VarType.CONTINUOUS,
@@ -177,68 +166,9 @@ class Model:
                 matrix[key] = value
             self.A[self.vars[v]] = matrix
 
-    def get_basic_feasible_solution(self):
-        self.B_inv = np.identity(len(self.basis))
-        B_inv_b = self.B_inv.dot(self.b)
-        if np.all(B_inv_b >= 0):
-            for v in range(len(self.basis)):
-                self.basis[v].value = B_inv_b[v].item()
-            self.update_obj_value()
-            self.check_feasibility()
-            self.update_print_result()
-            return True
-        return False
-
-    def check_feasibility(self):
-        for var in [v for v in self.vars
-                    if v.var_name_type == VarNameType.ARTIFICIAL]:
-            if var.value > 0.0:
-                self.result.status = AlgorithmStatus.INFEASIBLE
-                return
-        if self.is_terminated:
-            self.result.status = AlgorithmStatus.OPTIMAL
-        else:
-            self.result.status = AlgorithmStatus.FEASIBLE
-
-    def update_print_result(self):
-        solution = {}
-        for var in self.vars:
-            solution[var.name] = round(var.value, 3)
-        self.result.solution = solution
-        if self.obj.obj_type == ObjectiveType.MIN:
-            self.result.obj_val = round(self.obj.value, 3)
-        elif self.obj.obj_type == ObjectiveType.MAX:
-            self.result.obj_val = -round(self.obj.value, 3)
-        print(json.dumps(self.result.__dict__))
-
-    def update_obj_value(self):
-        obj_val = 0.0
-        for var in self.vars:
-            obj_val += var.coeff_c * var.value
-        self.obj.value = obj_val
-
-    def update_basis(self, leaving_var, entering_var):
-        self.basis = [entering_var if x == leaving_var else x for x in self.basis]
-        self.set_B_inv(self.basis)
-        B_inv_b = self.B_inv.dot(self.b)
-        for v in range(len(self.basis)):
-            self.basis[v].value = B_inv_b[v].item()
-
-    def set_B_inv(self, basis_vars):
-        n = self.n_rows
-        basic_matrix = self.get_coeff_matrix(basis_vars, n, n)
-        self.B_inv = np.linalg.inv(basic_matrix)
-
-    def get_coeff_matrix(self, variables, row, col):
-        coeffs_a = []
-        for var in variables:
-            coeffs_a.append(self.A[var])
-        return np.concatenate(coeffs_a, axis=1).reshape((row, col))
-
     def get_value(self, var):
         var_in_vars = get_first_or_default([v for v in self.vars if v == var])
         if var_in_vars:
             return var_in_vars.value
         else:
             raise UnknownVariableError('Unknown variable to the solver.')
-
