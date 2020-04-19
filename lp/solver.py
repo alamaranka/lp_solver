@@ -26,7 +26,7 @@ class SimplexSolver:
     def run(self):
         while not self._is_terminated:
             self.iterate()
-            self.update_print_result()
+        self.prepare_and_print_result()
 
     def iterate(self):
         c_b = get_c_b(self._m.basis)
@@ -55,7 +55,7 @@ class SimplexSolver:
             self.update_obj_value()
         else:
             self._is_terminated = True
-            self.check_feasibility()
+            self.check_status()
 
     def update_basis(self, leaving_var, entering_var):
         self._m.basis = [entering_var if x == leaving_var else x for x in self._m.basis]
@@ -75,7 +75,7 @@ class SimplexSolver:
         basic_matrix = self.get_coeff_matrix(basis_vars, n, n)
         return np.linalg.inv(basic_matrix)
 
-    def check_feasibility(self):
+    def check_status(self):
         for var in [v for v in self._m.vars
                     if v.var_name_type == VarNameType.ARTIFICIAL]:
             if var.value > 0.0:
@@ -92,9 +92,9 @@ class SimplexSolver:
             coeffs_a.append(self._m.A[var])
         return np.concatenate(coeffs_a, axis=1).reshape((row, col))
 
-    def update_print_result(self):
+    def prepare_and_print_result(self):
         solution = {}
-        for var in self._m.vars:
+        for var in self._m.basis:
             solution[var.name] = round(var.value, 3)
         self._m.result.solution = solution
         if self._m.obj.obj_type == ObjectiveType.MIN:

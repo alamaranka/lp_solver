@@ -87,3 +87,8 @@ class AlgorithmStatus(enum.IntEnum):
 class UnknownVariableError(Exception):
     def __init__(self, message):
         self.message = message
+
+
+class UnknownModelError(Exception):
+    def __init__(self, message):
+        self.message = message

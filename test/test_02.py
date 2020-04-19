@@ -20,7 +20,7 @@ def run():
     expr = Expression()
     expr.add_term(1.0, x)
     expr.add_term(1.0, y)
-    model.add_const(expr, Sense.EQ, 0.75)
+    model.add_const(expr, Sense.LE, -0.75)
 
     expr = Expression()
     expr.add_term(1.0, x)

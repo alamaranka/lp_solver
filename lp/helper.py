@@ -22,7 +22,7 @@ def set_reverse_sense(sense):
     elif sense == Sense.GE:
         return Sense.LE
     else:
-        return None
+        return Sense.EQ
 
 
 def get_var_index_in_const(var, expr):
