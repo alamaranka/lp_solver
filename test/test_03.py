@@ -1,12 +1,12 @@
-from lp.entity import Sense, ObjectiveType, Expression
+from lp.entity import Sense, ObjectiveType, Expression, VarType
 from lp.model import Model
 
 
 def run():
     model = Model()
 
-    x = model.add_var(name='x')
-    y = model.add_var(name='y')
+    x = model.add_var(name='x', var_type=VarType.INTEGER)
+    y = model.add_var(name='y', var_type=VarType.INTEGER)
 
     expr = Expression()
     expr.add_term(8000.0, x)

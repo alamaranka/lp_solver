@@ -2,7 +2,7 @@ import json
 
 import numpy as np
 
-from lp.entity import AlgorithmStatus, VarNameType, ObjectiveType
+from lp.entity import AlgorithmStatus, VarNameType, ObjectiveType, VarType
 from lp.helper import get_c_b
 
 
@@ -16,7 +16,7 @@ class SimplexSolver:
 
     Properties
     ==========
-    is_terminated : bool whether or not the simplex solver is terminated
+    _is_terminated : bool whether or not the simplex solver is terminated
     """
     def __init__(self, model):
         self._m = model
@@ -105,14 +105,37 @@ class SimplexSolver:
 
 
 class MIPSolver:
-    def __init__(self, model):
-        pass
+    """
+    This uses Branch & Bound algorithm to solve the MIP problem.
+
+    Parameters
+    ==========
+    model           : Model class
+    simplex_solver  : SimplexSolver class
+
+    Properties
+    ==========
+    _is_terminated : bool whether or not the simplex solver is terminated
+    _int_vars      : list of integer and binary variables in the model
+    """
+    def __init__(self, model, simplex_solver):
+        self._m = model
+        self._s_solver = simplex_solver
+        self._is_terminated = False
+        self._int_vars = [v for v in model.vars
+                          if (v.var_type == VarType.BINARY) or
+                          (v.var_type == VarType.INTEGER)]
+
+    def run(self):
+        if not self._m.is_mip:
+            self._s_solver.run()
+            return
+        print('TODO: develop branch and bound.')
 
 
 class InitialBasicSolutionGenerator:
     def __init__(self, model):
         self._m = model
-        pass
 
     def generate(self):
         n_rows = self._m.n_rows

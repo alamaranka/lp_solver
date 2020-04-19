@@ -70,18 +70,21 @@ class Model:
         self.prepare_coefficient_matrices()
         ibsg = InitialBasicSolutionGenerator(self)
         simplex_solver = SimplexSolver(self)
-        mip_solver = MIPSolver(self)
+        mip_solver = MIPSolver(self, simplex_solver)
         if ibsg.generate():
-            simplex_solver.run()
+            mip_solver.run()
         else:
             raise UnknownModelError('Unknown model error.')
         end_time = time.clock()
         self.solution_time = end_time - start_time
+        print('Algorithm completed in {0} seconds.'
+              .format(round(self.solution_time, 4)))
 
     def add_var(self, lb=0, ub=sys.float_info.max, name='',
                 var_type=VarType.CONTINUOUS,
                 var_name_type=VarNameType.PRIMAL):
-        if var_type != VarType.CONTINUOUS:
+        if var_type == VarType.BINARY or \
+                var_type == VarType.INTEGER:
             self.is_mip = True
         var = Variable(lb, ub, name, var_type, var_name_type)
         self.vars.append(var)
