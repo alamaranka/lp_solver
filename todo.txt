@@ -1,5 +1,3 @@
 - develop presolve
 
 - python -m cProfile -s time main.py test_01
-
-- separate lp_solve from model
