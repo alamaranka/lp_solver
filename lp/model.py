@@ -43,7 +43,7 @@ class Model:
 
     SOLVER_PARAM = SolverParam()
 
-    def __init__(self, name='LP Solver'):
+    def __init__(self, name='Mathematical Model'):
         self.name = name
         self.vars = []
         self.consts = []
@@ -62,14 +62,15 @@ class Model:
         self.n_surplus = 0
         self.n_artificial = 0
         self.BIG_M = math.pow(10, 6)
-        self.solution_time = 0
+        self.start_time = 0
+        self.end_time = 0
 
     @property
     def __str__(self):
         return self.name
 
     def solve(self):
-        start_time = time.clock()
+        self.start_time = time.clock()
         self.prepare_coefficient_matrices()
         ibsg = InitialBasicSolutionGenerator(self)
         mip_solver = MIPSolver(self)
@@ -77,10 +78,10 @@ class Model:
             mip_solver.run()
         else:
             raise UnknownModelError('Unknown model error.')
-        end_time = time.clock()
-        self.solution_time = end_time - start_time
+        self.end_time = time.clock()
+        solution_time = self.end_time - self.start_time
         print('Algorithm completed in {0} seconds.'
-              .format(round(self.solution_time, 4)))
+              .format(round(solution_time, 4)))
 
     def add_var(self, lb=0, ub=sys.float_info.max, name='',
                 var_type=VarType.CONTINUOUS,

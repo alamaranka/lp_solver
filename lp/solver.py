@@ -1,4 +1,5 @@
 import json
+import time
 
 import numpy as np
 
@@ -145,15 +146,35 @@ class MIPSolver:
         self._int_vars = [v for v in model.vars
                           if (v.var_type == VarType.BINARY) or
                           (v.var_type == VarType.INTEGER)]
+        self.root_node = Node(model)
+        self.mip_gap = 100.0
+        self.solution_time = 0
 
     def run(self):
-        # while terminating condition is not met:
-        self._tree.append(Node(self._model))
-        simplex_solver = SimplexSolver(self._model)
-        simplex_solver.run()
+        current_node = self.root_node
+        self._tree.append(current_node)
+        while not self.is_terminated():
+            simplex_solver = SimplexSolver(current_node.model)
+            simplex_solver.run()
+            self.root_node.is_pruned = True
+            # TODO: handle pruning and branching
+            # if self.is_pruned():
+            #   do stuff
+            # else:
+            #   create 2 deep copy of model and add cuts
+            # select current_node
 
-        print('TODO: develop branch and bound.')
+    def is_terminated(self):
+        self.solution_time = time.clock() - self._model.start_time
+        any_nodes_to_branch = self.any_nodes_to_branch()
+        is_mip_gap_reached = self.mip_gap <= self._model.SOLVER_PARAM.MIP_GAP
+        is_time_limit_reached = self.solution_time >= self._model.SOLVER_PARAM.TIME_LIMIT
+        return (not any_nodes_to_branch) or is_mip_gap_reached or is_time_limit_reached
 
-
+    def any_nodes_to_branch(self):
+        nodes_to_branch = [n for n in self._tree if not n.is_pruned]
+        if len(nodes_to_branch) == 0:
+            return False
+        return True
 
 
