@@ -6,9 +6,9 @@ import numpy as np
 
 from lp.entity import VarNameType, Sense, ObjectiveType, \
     Result, Variable, Constraint, Objective, \
-    VarType, UnknownVariableError, UnknownModelError
+    VarType, UnknownVariableError, UnknownModelError, SolverParam
 from lp.helper import get_first_or_default, set_reverse_sense
-from lp.solver import SimplexSolver, MIPSolver, InitialBasicSolutionGenerator
+from lp.solver import MIPSolver, InitialBasicSolutionGenerator
 
 
 class Model:
@@ -40,6 +40,9 @@ class Model:
     BIG_M           : double used to model artificial variables in the model
     solution_time   : double total solution time in seconds
     """
+
+    SOLVER_PARAM = SolverParam()
+
     def __init__(self, name='LP Solver'):
         self.name = name
         self.vars = []
@@ -69,8 +72,7 @@ class Model:
         start_time = time.clock()
         self.prepare_coefficient_matrices()
         ibsg = InitialBasicSolutionGenerator(self)
-        simplex_solver = SimplexSolver(self)
-        mip_solver = MIPSolver(self, simplex_solver)
+        mip_solver = MIPSolver(self)
         if ibsg.generate():
             mip_solver.run()
         else:
@@ -174,3 +176,4 @@ class Model:
             return var_in_vars.value
         else:
             raise UnknownVariableError('Unknown variable to the solver.')
+

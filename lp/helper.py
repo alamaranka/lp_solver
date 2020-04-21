@@ -24,8 +24,3 @@ def set_reverse_sense(sense):
     else:
         return Sense.EQ
 
-
-def get_var_index_in_const(var, expr):
-    if var in expr.vars:
-        return expr.vars.index(var)
-    return -1

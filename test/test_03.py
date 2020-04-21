@@ -1,4 +1,4 @@
-from lp.entity import Sense, ObjectiveType, Expression, VarType
+from lp.entity import Sense, ObjectiveType, Expression, VarType, SolverParam
 from lp.model import Model
 
 
@@ -22,6 +22,9 @@ def run():
     expr.add_term(100.0, x)
     expr.add_term(150.0, y)
     model.set_objective(expr, ObjectiveType.MAX)
+
+    model.SOLVER_PARAM.MIP_GAP = 0.05
+    model.SOLVER_PARAM.TIME_LIMIT = 30.0
 
     model.solve()
 

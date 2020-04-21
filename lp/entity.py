@@ -1,4 +1,5 @@
 import enum
+import sys
 
 
 class Variable:
@@ -46,6 +47,25 @@ class Result:
         self.status = status
         self.obj_val = obj_val
         self.solution = solution
+
+
+class Node:
+    def __init__(self, model,
+                 is_pruned=False):
+        self.model = model
+        self.is_pruned = is_pruned
+
+
+class SolverParam:
+
+    class BranchingAlgorithm(enum.IntEnum):
+        NONE = 0
+        DFS = 1
+        BFS = 2
+
+    MIP_GAP = 0.0
+    TIME_LIMIT = sys.float_info.max
+    BRANCHING_ALGORITHM = BranchingAlgorithm.DFS
 
 
 class Sense(enum.IntEnum):
