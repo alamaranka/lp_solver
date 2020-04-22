@@ -133,8 +133,7 @@ class MIPSolver:
     Properties
     ==========
     _tree          : list of nodes in the solution tree; index 0 is the root node
-    _n_nodes       : number of nodes in the solution tree
-    _is_terminated : bool whether or not the simplex solver is terminated
+    _n_nodes       : int number of nodes in the solution tree
     _int_vars      : list of integer and binary variables in the model
     _root_node     : Node class of root
     _mip_gap       : double current mip_gap in the tree
@@ -145,7 +144,6 @@ class MIPSolver:
         self._model = model
         self._tree = []
         self._n_nodes = 0
-        self._is_terminated = False
         self._int_vars = [v for v in model.vars
                           if (v.var_type == VarType.BINARY) or
                           (v.var_type == VarType.INTEGER)]
