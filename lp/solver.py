@@ -136,6 +136,9 @@ class MIPSolver:
     _n_nodes       : number of nodes in the solution tree
     _is_terminated : bool whether or not the simplex solver is terminated
     _int_vars      : list of integer and binary variables in the model
+    _root_node     : Node class of root
+    _mip_gap       : double current mip_gap in the tree
+    _solution_time : double total time elapsed in seconds since the solve method called
     """
 
     def __init__(self, model):
@@ -146,17 +149,17 @@ class MIPSolver:
         self._int_vars = [v for v in model.vars
                           if (v.var_type == VarType.BINARY) or
                           (v.var_type == VarType.INTEGER)]
-        self.root_node = Node(model)
-        self.mip_gap = 100.0
-        self.solution_time = 0
+        self._root_node = Node(model)
+        self._mip_gap = 100.0
+        self._solution_time = 0
 
     def run(self):
-        current_node = self.root_node
+        current_node = self._root_node
         self._tree.append(current_node)
         while not self.is_terminated():
             simplex_solver = SimplexSolver(current_node.model)
             simplex_solver.run()
-            self.root_node.is_pruned = True
+            self._root_node.is_pruned = True
             # TODO: handle pruning and branching
             # if self.is_pruned():
             #   do stuff
@@ -165,9 +168,9 @@ class MIPSolver:
             # select current_node
 
     def is_terminated(self):
-        self.solution_time = time.clock() - self._model.start_time
+        self._solution_time = time.clock() - self._model.start_time
         any_nodes_to_branch = self.any_nodes_to_branch()
-        is_mip_gap_reached = self.mip_gap <= self._model.SOLVER_PARAM.MIP_GAP
+        is_mip_gap_reached = self._mip_gap <= self._model.SOLVER_PARAM.MIP_GAP
         is_time_limit_reached = self.solution_time >= self._model.SOLVER_PARAM.TIME_LIMIT
         return (not any_nodes_to_branch) or is_mip_gap_reached or is_time_limit_reached
 
