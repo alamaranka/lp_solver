@@ -169,7 +169,7 @@ class MIPSolver:
         self._solution_time = time.clock() - self._model.start_time
         any_nodes_to_branch = self.any_nodes_to_branch()
         is_mip_gap_reached = self._mip_gap <= self._model.SOLVER_PARAM.MIP_GAP
-        is_time_limit_reached = self.solution_time >= self._model.SOLVER_PARAM.TIME_LIMIT
+        is_time_limit_reached = self._solution_time >= self._model.SOLVER_PARAM.TIME_LIMIT
         return (not any_nodes_to_branch) or is_mip_gap_reached or is_time_limit_reached
 
     def any_nodes_to_branch(self):
