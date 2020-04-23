@@ -8,8 +8,8 @@ from lp.model import Model
 def run():
     model = Model()
 
-    n_cols = 1000
-    n_rows = 250
+    n_cols = 500
+    n_rows = 1000
     cols = []
     rows = []
     obj_expr = Expression()

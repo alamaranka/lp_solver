@@ -38,7 +38,7 @@ class SimplexSolver:
     def __init__(self, model):
         self._model = model
         self._is_terminated = False
-        pass
+        self._E = np.identity(model.n_rows)
 
     def run(self):
         while not self._is_terminated:
@@ -53,7 +53,8 @@ class SimplexSolver:
             z_c[var] = w.dot(self._model.A[var]) - var.coeff_c
         entering_var = max(z_c, key=z_c.get)
         if z_c[entering_var] > 0:
-            y_k = self._model.B_inv.dot(self._model.A[entering_var])
+            u = self._model.A[entering_var]  # entering variable column
+            y_k = self._model.B_inv.dot(u)
             if np.all(y_k <= 0):
                 self._model.result.status = AlgorithmStatus.UNBOUNDED
                 self._is_terminated = True
@@ -62,22 +63,35 @@ class SimplexSolver:
             for i in range(len(y_k)):
                 if y_k[i] > 0:
                     rates[i] = self._model.basis[i].value / y_k[i]
-            leaving_var_index = min(rates, key=rates.get)
-            entering_var.value = rates[leaving_var_index].item()
-            entering_var.in_basis = True
-            leaving_var = self._model.basis[leaving_var_index]
-            leaving_var.value = 0.0
-            leaving_var.in_basis = False
-            self.update_basis(leaving_var, entering_var)
+            k = min(rates, key=rates.get)    # leaving variable index
+            self.update_basis(u, k, entering_var)
             self.update_obj_value()
         else:
             self._is_terminated = True
             self.check_status()
 
-    def update_basis(self, leaving_var, entering_var):
+    def update_basis(self, u, k, entering_var):
+        # update leaving variable
+        leaving_var = self._model.basis[k]
+        leaving_var.in_basis = False
+        leaving_var.value = 0.0
+        # update entering variable
+        entering_var.in_basis = True
+        # update basis matrix
         self._model.basis = [entering_var if x == leaving_var
                              else x for x in self._model.basis]
-        self._model.B_inv = self.update_B_inv(self._model.basis)
+        # update B_inv TODO: handle this properly
+        if False:
+            v = self._model.B_inv.dot(u)
+            E = np.identity(self._model.n_rows)
+            rep = v * (-1 / v[k])
+            E[:, k] = rep[:, 0]
+            E[k, k] = 1 / v[k]
+            self._model.B_inv = E.dot(self._E)
+            self._E = E
+        else:
+            self._model.B_inv = self.update_B_inv()
+        # update variable values in the basis
         B_inv_b = self._model.B_inv.dot(self._model.b)
         for v in range(len(self._model.basis)):
             self._model.basis[v].value = B_inv_b[v].item()
@@ -88,9 +102,9 @@ class SimplexSolver:
             obj_val += var.coeff_c * var.value
         self._model.obj.value = obj_val
 
-    def update_B_inv(self, basis_vars):
+    def update_B_inv(self):
         n = self._model.n_rows
-        basic_matrix = self.get_coeff_matrix(basis_vars, n, n)
+        basic_matrix = self.get_coeff_matrix(self._model.basis, n, n)
         return np.linalg.inv(basic_matrix)
 
     def check_status(self):
