@@ -64,13 +64,13 @@ class SimplexSolver:
                 if y_k[i] > 0:
                     rates[i] = self._model.basis[i].value / y_k[i]
             k = min(rates, key=rates.get)    # leaving variable index
-            self.update_basis(u, k, y_k, entering_var)
+            self.update_basis(k, y_k, entering_var)
             self.update_obj_value()
         else:
             self._is_terminated = True
             self.check_status()
 
-    def update_basis(self, u, k, y_k, entering_var):
+    def update_basis(self, k, y_k, entering_var):
         # update leaving variable
         leaving_var = self._model.basis[k]
         leaving_var.in_basis = False
