@@ -3,7 +3,7 @@ import sys
 
 
 class ProblemInstance:
-    def __init__(self, obj, c, A, b, sense=[]):
+    def __init__(self, obj, c, A, b, sense):
         self.obj = obj
         self.c = c
         self.A = A
