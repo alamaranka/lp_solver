@@ -16,10 +16,12 @@ def run(data):
     cols = []
     rows = []
 
+    # add variables TODO: add var_type in ProblemInstance class
     for c in range(n_cols):
         cols.append(model.add_var(lb=0, ub=sys.float_info.max, name='x' + str(c)))
         obj_expr.add_term(cost[c], cols[c])
 
+    # add constraints
     for r in range(n_rows):
         expr = Expression()
         for c in range(n_cols):
@@ -31,6 +33,7 @@ def run(data):
         elif sense[r] == '==':
             rows.append(model.add_const(expr, Sense.EQ, rhs[r]))
 
+    # add objective
     if data.obj == 'max':
         model.set_objective(obj_expr, ObjectiveType.MAX)
     elif data.obj == 'min':
