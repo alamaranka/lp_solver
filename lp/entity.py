@@ -2,6 +2,15 @@ import enum
 import sys
 
 
+class ProblemInstance:
+    def __init__(self, obj, c, A, b, sense=[]):
+        self.obj = obj
+        self.c = c
+        self.A = A
+        self.b = b
+        self.sense = sense
+
+
 class Variable:
     def __init__(self, lb, ub, name,
                  var_type, var_name_type):

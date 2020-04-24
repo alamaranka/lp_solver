@@ -1,19 +1,12 @@
-import json
 import sys
 
-from lp.entity import Sense, ObjectiveType, Expression, ProblemInstance
+from lp.entity import Sense, ObjectiveType, Expression
 from lp.model import Model
 
 
-def run(test_name):
+def run(data):
     model = Model()
     obj_expr = Expression()
-
-    with open(test_name + '.json') as json_file:
-        data = json.load(json_file,
-                         object_hook=lambda d: ProblemInstance(c=d['c'], A=d['A'],
-                                                               b=d['b'], sense=d['sense']))
-
     cost = data.c
     rhs = data.b
     coeffs = data.A
@@ -38,6 +31,12 @@ def run(test_name):
         elif sense[r] == '==':
             rows.append(model.add_const(expr, Sense.EQ, rhs[r]))
 
-    model.set_objective(obj_expr, ObjectiveType.MAX)
+    if data.obj == 'max':
+        model.set_objective(obj_expr, ObjectiveType.MAX)
+    elif data.obj == 'min':
+        model.set_objective(obj_expr, ObjectiveType.MIN)
+
+    model.SOLVER_PARAM.MIP_GAP = 0.05
+    model.SOLVER_PARAM.TIME_LIMIT = 30.0
 
     model.solve()

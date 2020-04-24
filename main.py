@@ -1,17 +1,17 @@
+import errno
+import json
 import sys
 
-from test import test_01, test_02, test_03, test_04
+from lp.entity import ProblemInstance
+from test import test
 
 if __name__ == '__main__':
-    test = str(sys.argv[1])
-    if test == 'test_01':
-        test_01.run()
-    elif test == 'test_02':
-        test_02.run()
-    elif test == 'test_03':
-        test_03.run()
-    elif test == 'test_04':
-        test_04.run()
-    else:
-        print('No tests to run with name: {0}'.format(test))
-
+    test_name = str(sys.argv[1])
+    try:
+        with open('test/' + test_name + '.json') as json_file:
+            data = json.load(json_file,
+                             object_hook=lambda d: ProblemInstance(obj=d['obj'], c=d['c'], A=d['A'],
+                                                                   b=d['b'], sense=d['sense']))
+        test.run(data)
+    except IOError:
+        print('No test file with this name!')
