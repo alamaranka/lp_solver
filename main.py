@@ -9,7 +9,8 @@ if __name__ == '__main__':
     try:
         with open('test/' + test_name + '.json') as json_file:
             data = json.load(json_file,
-                             object_hook=lambda d: ProblemInstance(obj=d['obj'], c=d['c'], A=d['A'],
+                             object_hook=lambda d: ProblemInstance(obj=d['obj'], c=d['c'],
+                                                                   var_type=d['var_type'], A=d['A'],
                                                                    b=d['b'], sense=d['sense']))
         test.run(data)
     except IOError:

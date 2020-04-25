@@ -1,12 +1,13 @@
 import sys
 
-from lp.entity import Sense, ObjectiveType, Expression
+from lp.entity import Sense, ObjectiveType, Expression, VarType
 from lp.model import Model
 
 
 def run(data):
     model = Model()
     obj_expr = Expression()
+    var_types = data.var_type
     cost = data.c
     rhs = data.b
     coeffs = data.A
@@ -16,9 +17,17 @@ def run(data):
     cols = []
     rows = []
 
-    # add variables TODO: add var_type in ProblemInstance class
+    # add variables
     for c in range(n_cols):
-        cols.append(model.add_var(lb=0, ub=sys.float_info.max, name='x' + str(c)))
+        var_type = VarType.NONE
+        if var_types[c] == 'c':
+            var_type = VarType.CONTINUOUS
+        if var_types[c] == 'i':
+            var_type = VarType.INTEGER
+        elif var_types[c] == 'b':
+            var_type = VarType.BINARY
+        cols.append(model.add_var(lb=0, ub=sys.float_info.max,
+                                  var_type=var_type, name='x' + str(c)))
         obj_expr.add_term(cost[c], cols[c])
 
     # add constraints

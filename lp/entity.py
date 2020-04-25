@@ -3,9 +3,10 @@ import sys
 
 
 class ProblemInstance:
-    def __init__(self, obj, c, A, b, sense):
+    def __init__(self, obj, c, var_type, A, b, sense):
         self.obj = obj
         self.c = c
+        self.var_type = var_type
         self.A = A
         self.b = b
         self.sense = sense
