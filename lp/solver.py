@@ -108,12 +108,6 @@ class SimplexSolver:
         else:
             self._model.result.status = AlgorithmStatus.FEASIBLE
 
-    def get_coeff_matrix(self, variables, row, col):
-        coeffs_a = []
-        for var in variables:
-            coeffs_a.append(self._model.A[var])
-        return np.concatenate(coeffs_a, axis=1).reshape((row, col))
-
     def prepare_and_print_result(self):
         solution = {}
         for var in self._model.basis:
