@@ -171,10 +171,16 @@ class Model:
                 matrix[key] = value
             self.A[self.vars[v]] = matrix
 
+    def add_cut(self, expr, sense, rhs):
+        matrix = np.zeros((self.n_rows, 1), dtype=np.float32)
+        for key, value in self.vars[v].coeffs_a.items():
+            matrix[key] = value
+        self.A[self.vars[v]] = matrix
+        pass
+
     def get_value(self, var):
         var_in_vars = get_first_or_default([v for v in self.vars if v == var])
         if var_in_vars:
             return var_in_vars.value
         else:
             raise UnknownVariableError('Unknown variable to the solver.')
-
