@@ -164,7 +164,7 @@ class MIPSolver:
             # select current_node
 
     def is_terminated(self):
-        self._solution_time = time.clock() - self._model.start_time
+        self._solution_time = time.perf_counter() - self._model.start_time
         any_nodes_to_branch = self.any_nodes_to_branch()
         is_mip_gap_reached = self._mip_gap <= self._model.SOLVER_PARAM.MIP_GAP
         is_time_limit_reached = self._solution_time >= self._model.SOLVER_PARAM.TIME_LIMIT

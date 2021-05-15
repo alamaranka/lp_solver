@@ -70,7 +70,7 @@ class Model:
         return self.name
 
     def solve(self):
-        self.start_time = time.clock()
+        self.start_time = time.perf_counter()
         self.prepare_coefficient_matrices()
         ibsg = InitialBasicSolutionGenerator(self)
         mip_solver = MIPSolver(self)
@@ -78,7 +78,7 @@ class Model:
             mip_solver.run()
         else:
             raise UnknownModelError('Unknown model error.')
-        self.end_time = time.clock()
+        self.end_time = time.perf_counter()
         solution_time = self.end_time - self.start_time
         print('Algorithm completed in {0} seconds.'
               .format(round(solution_time, 4)))
@@ -172,10 +172,10 @@ class Model:
             self.A[self.vars[v]] = matrix
 
     def add_cut(self, expr, sense, rhs):
-        matrix = np.zeros((self.n_rows, 1), dtype=np.float32)
-        for key, value in self.vars[v].coeffs_a.items():
-            matrix[key] = value
-        self.A[self.vars[v]] = matrix
+        # matrix = np.zeros((self.n_rows, 1), dtype=np.float32)
+        # for key, value in self.vars[v].coeffs_a.items():
+        #     matrix[key] = value
+        # self.A[self.vars[v]] = matrix
         pass
 
     def get_value(self, var):
