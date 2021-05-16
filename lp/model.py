@@ -6,7 +6,7 @@ import numpy as np
 
 from lp.entity import VarNameType, Sense, ObjectiveType, \
     Result, Variable, Constraint, Objective, \
-    VarType, UnknownVariableError, UnknownModelError, SolverParam
+    VarType, UnknownVariableError, UnknownModelError, SolverParam, Expression
 from lp.helper import get_first_or_default, set_reverse_sense
 from lp.solver import MIPSolver, InitialBasicSolutionGenerator
 
@@ -114,6 +114,11 @@ class Model:
         self.consts.append(const)
         self.n_rows += 1
         return const
+
+    def add_const_var(self, var, sense, rhs):
+        expr = Expression()
+        expr.add_term(1.0, var)
+        self.add_const(expr, sense, rhs)
 
     def set_objective(self, expr, obj_type):
         self.obj = Objective(expr, obj_type)
