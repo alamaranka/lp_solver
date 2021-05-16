@@ -1,5 +1,3 @@
-import sys
-
 from lp.entity import Expression, Sense, ObjectiveType
 from lp.model import Model
 
@@ -15,39 +13,35 @@ c = [
    [M, 0, 0, 0, 0, 0]   # t
 ]
 
+try:
+    # set of indices
+    n = range(len(c))
 
-if __name__ == '__main__':
-    try:
-        # set of indices
-        n = range(len(c))
+    # create model
+    model = Model()
 
-        # create model
-        model = Model()
+    # create variables
+    x = [[model.add_var(name='x[%i,%i]' % (i, j)) for j in n] for i in n]
 
-        # create variables
-        x = [[model.add_var(name='x[%i,%i]' % (i, j)) for j in n] for i in n]
+    # flow constraints
+    for i in n:
+        expr = Expression()
+        for j in n:
+            expr.add_term(1.0, x[i][j])
+            expr.add_term(-1.0, x[j][i])
+        model.add_const(expr, Sense.EQ, 0)
 
-        # flow constraints
-        for i in n:
-            expr = Expression()
-            for j in n:
-                expr.add_term(1.0, x[i][j])
-                expr.add_term(-1.0, x[j][i])
-            model.add_const(expr, Sense.EQ, 0)
+    # capacity constraints
+    for i in n:
+        for j in n:
+            model.add_const_var(x[i][j], Sense.LE, c[i][j])
 
-        # capacity constraints
-        for i in n:
-            for j in n:
-                expr = Expression()
-                expr.add_term(1.0, x[i][j])
-                model.add_const(expr, Sense.LE, c[i][j])
+    # create objective
+    obj_expr = Expression()
+    obj_expr.add_term(1.0, x[t][s])
+    model.set_objective(obj_expr, ObjectiveType.MAX)
 
-        # create objective
-        obj_expr = Expression()
-        obj_expr.add_term(1.0, x[t][s])
-        model.set_objective(obj_expr, ObjectiveType.MAX)
-
-        # solve model
-        status = model.solve()
-    except IOError:
-        print('Some error!')
+    # solve model
+    status = model.solve()
+except IOError:
+    print('Some error!')
