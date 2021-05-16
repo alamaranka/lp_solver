@@ -111,7 +111,8 @@ class SimplexSolver:
     def prepare_and_print_result(self):
         solution = {}
         for var in self._model.basis:
-            solution[var.name] = round(var.value, 3)
+            if var.var_name_type == VarNameType.PRIMAL:
+                solution[var.name] = round(var.value, 3)
         self._model.result.solution = solution
         if self._model.obj.obj_type == ObjectiveType.MIN:
             self._model.result.obj_val = round(self._model.obj.value, 3)
