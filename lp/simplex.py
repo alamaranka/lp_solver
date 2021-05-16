@@ -1,26 +1,7 @@
-import json
-import time
-
 import numpy as np
 
-from lp.entity import AlgorithmStatus, VarNameType, \
-    ObjectiveType, VarType, Node
+from lp.entity import AlgorithmStatus, VarNameType, ObjectiveType
 from lp.helper import get_c_b
-
-
-class InitialBasicSolutionGenerator:
-    def __init__(self, model):
-        self._model = model
-
-    def generate(self):
-        n_rows = self._model.n_rows
-        self._model.B_inv = np.identity(n_rows)
-        B_inv_b = self._model.B_inv.dot(self._model.b)
-        if np.all(B_inv_b >= 0):
-            for v in range(n_rows):
-                self._model.basis[v].value = B_inv_b[v].item()
-            return True
-        return False
 
 
 class SimplexSolver:
@@ -81,15 +62,15 @@ class SimplexSolver:
         self._model.basis = [entering_var if x == leaving_var
                              else x for x in self._model.basis]
         # update E
-        E = np.identity(self._model.n_rows)
+        e = np.identity(self._model.n_rows)
         rep = y_k * (-1 / y_k[k])
-        E[:, k] = rep[:, 0]
-        E[k, k] = 1 / y_k[k]
-        self._E = E.dot(self._E)
+        e[:, k] = rep[:, 0]
+        e[k, k] = 1 / y_k[k]
+        self._E = e.dot(self._E)
         # update variable values in the basis
-        B_inv_b = self._E.dot(self._model.b)
+        b_inv_b = self._E.dot(self._model.b)
         for v in range(len(self._model.basis)):
-            self._model.basis[v].value = B_inv_b[v].item()
+            self._model.basis[v].value = b_inv_b[v].item()
 
     def update_obj_value(self):
         obj_val = 0.0
@@ -118,63 +99,15 @@ class SimplexSolver:
             self._model.result.obj_val = round(self._model.obj.value, 3)
         elif self._model.obj.obj_type == ObjectiveType.MAX:
             self._model.result.obj_val = -round(self._model.obj.value, 3)
-        print(json.dumps(self._model.result.__dict__))
-
-
-class MIPSolver:
-    """
-    This uses Branch & Bound algorithm to solve the MIP problem.
-
-    Parameters
-    ==========
-    model           : Model class
-
-    Properties
-    ==========
-    _tree          : list of nodes in the solution tree; index 0 is the root node
-    _n_nodes       : int number of nodes in the solution tree
-    _int_vars      : list of integer and binary variables in the model
-    _root_node     : Node class of root
-    _mip_gap       : double current mip_gap in the tree
-    _solution_time : double total time elapsed in seconds since the solve method called
-    """
-
-    def __init__(self, model):
-        self._model = model
-        self._tree = []
-        self._n_nodes = 0
-        self._int_vars = [v for v in model.vars
-                          if (v.var_type == VarType.BINARY) or
-                          (v.var_type == VarType.INTEGER)]
-        self._root_node = Node(model)
-        self._mip_gap = 100.0
-        self._solution_time = 0
-
-    def run(self):
-        current_node = self._root_node
-        self._tree.append(current_node)
-        while not self.is_terminated():
-            simplex_solver = SimplexSolver(current_node.model)
-            simplex_solver.run()
-            self._root_node.is_pruned = True
-            # TODO: handle pruning and branching
-            # if self.is_pruned():
-            #   do stuff
-            # else:
-            #   create 2 deep copy of model and add cuts
-            # select current_node
-
-    def is_terminated(self):
-        self._solution_time = time.perf_counter() - self._model.start_time
-        any_nodes_to_branch = self.any_nodes_to_branch()
-        is_mip_gap_reached = self._mip_gap <= self._model.SOLVER_PARAM.MIP_GAP
-        is_time_limit_reached = self._solution_time >= self._model.SOLVER_PARAM.TIME_LIMIT
-        return (not any_nodes_to_branch) or is_mip_gap_reached or is_time_limit_reached
-
-    def any_nodes_to_branch(self):
-        nodes_to_branch = [n for n in self._tree if not n.is_pruned]
-        if len(nodes_to_branch) == 0:
-            return False
-        return True
-
-
+        if self._model.result.status == AlgorithmStatus.OPTIMAL or \
+           self._model.result.status == AlgorithmStatus.FEASIBLE:
+            print("Solution status: {0}".format(str(self._model.result.status)))
+            print("Objective value: {0}".format(self._model.result.obj_val))
+            print("Solution: {0}".format(self._model.result.solution))
+            # print(json.dumps(self._model.result.__dict__))
+        elif self._model.result.status == AlgorithmStatus.INFEASIBLE:
+            print("Model is infeasible")
+        elif self._model.result.status == AlgorithmStatus.UNBOUNDED:
+            print("Model is unbounded")
+        else:
+            print("Model status is unknown")

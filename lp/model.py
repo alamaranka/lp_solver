@@ -1,14 +1,10 @@
 import math
-import sys
 import time
-
 import numpy as np
 
-from lp.entity import VarNameType, Sense, ObjectiveType, \
-    Result, Variable, Constraint, Objective, \
-    VarType, UnknownVariableError, UnknownModelError, SolverParam, Expression
+from lp import algo
+from lp.entity import *
 from lp.helper import get_first_or_default, set_reverse_sense
-from lp.solver import MIPSolver, InitialBasicSolutionGenerator
 
 
 class Model:
@@ -22,7 +18,7 @@ class Model:
     Properties
     ===========
     vars            : list of variables in the model
-    consts          : list of constraints in the model
+    constrs          : list of constraints in the model
     obj             : Objective class contains the objective of the model
     result          : Result class contains the values of variables in the solution if exists
     is_mip          : bool whether or not the problem is MIP
@@ -43,10 +39,11 @@ class Model:
 
     SOLVER_PARAM = SolverParam()
 
-    def __init__(self, name='Mathematical Model'):
+    def __init__(self,
+                 name='Mathematical Model'):
         self.name = name
         self.vars = []
-        self.consts = []
+        self.constrs = []
         self.obj = None
         self.result = Result()
         self.is_mip = False
@@ -71,24 +68,35 @@ class Model:
 
     def solve(self):
         self.start_time = time.perf_counter()
+        self.add_variable_constraints()
         self.prepare_coefficient_matrices()
-        ibsg = InitialBasicSolutionGenerator(self)
-        mip_solver = MIPSolver(self)
-        if ibsg.generate():
-            mip_solver.run()
+        if self.initial_basic_feasible_solution_generator():
+            algorithm = Algorithm(self)
+            algorithm.run()
         else:
             raise UnknownModelError('Unknown model error.')
         self.end_time = time.perf_counter()
         solution_time = self.end_time - self.start_time
-        print('Algorithm completed in {0} seconds.'
-              .format(round(solution_time, 4)))
+        print('Algorithm completed in {0} seconds.'.format(round(solution_time, 4)))
 
-    def add_var(self, lb=0, ub=sys.float_info.max, name='',
+    # TODO:
+    def add_variable_constraints(self):
+        for var in [v for v in self.vars if v.var_name_type == VarNameType.PRIMAL]:
+            if var.ub < sys.float_info.max:
+                self.add_const_var(var, Sense.LE, var.ub)
+            self.add_const_var(var, Sense.GE, var.lb)
+
+    def add_var(self,
+                lb=0.0,
+                ub=sys.float_info.max,
+                name='',
                 var_type=VarType.CONTINUOUS,
                 var_name_type=VarNameType.PRIMAL):
-        if var_type == VarType.BINARY or \
-                var_type == VarType.INTEGER:
+        if var_type == VarType.BINARY or var_type == VarType.INTEGER:
             self.is_mip = True
+        if var_type == VarType.BINARY:
+            lb = 0.0
+            ub = 1.0
         var = Variable(lb, ub, name, var_type, var_name_type)
         self.vars.append(var)
         self.n_cols += 1
@@ -111,7 +119,7 @@ class Model:
         self.add_extra_vars(sense, const_num)
         # add constraint
         const = Constraint(expr, sense, rhs)
-        self.consts.append(const)
+        self.constrs.append(const)
         self.n_rows += 1
         return const
 
@@ -166,6 +174,16 @@ class Model:
         self.basis.append(artificial)
         self.n_artificial += 1
 
+    def initial_basic_feasible_solution_generator(self):
+        n_rows = self.n_rows
+        self.B_inv = np.identity(n_rows)
+        b_inv_b = self.B_inv.dot(self.b)
+        if np.all(b_inv_b >= 0):
+            for v in range(n_rows):
+                self.basis[v].value = b_inv_b[v].item()
+            return True
+        return False
+
     def prepare_coefficient_matrices(self):
         self.b = np.asarray(self.rhs, dtype=np.float32)
         self.b = self.b.reshape((self.b.shape[0], 1))
@@ -175,13 +193,6 @@ class Model:
             for key, value in self.vars[v].coeffs_a.items():
                 matrix[key] = value
             self.A[self.vars[v]] = matrix
-
-    def add_cut(self, expr, sense, rhs):
-        # matrix = np.zeros((self.n_rows, 1), dtype=np.float32)
-        # for key, value in self.vars[v].coeffs_a.items():
-        #     matrix[key] = value
-        # self.A[self.vars[v]] = matrix
-        pass
 
     def get_value(self, var):
         var_in_vars = get_first_or_default([v for v in self.vars if v == var])
